@@ -204,10 +204,10 @@ add_mem:
         jl add_mem_loop
     add_mem_loop_end:
     # afisam
-    xorl %eax, %eax
-    incl %eax
-    cmpl addOk, %eax
-    jne add_mem_end_frfr
+    #  xorl %eax, %eax
+    # incl %eax
+    # cmpl addOk, %eax
+    # jne add_mem_end_frfr
     # afisam doar daca e gasit numarul, adica daca l-am bagat
     pusha
     pushl x_addmem
