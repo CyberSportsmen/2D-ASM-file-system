@@ -3,6 +3,8 @@ afis: .asciz "%d "
 afisenter: .asciz "\n"
 print_nr_op: .asciz "Operatia nr. %d:\n"
 print_debug_all_variables: .asciz "startGetX: %ld\nstartGetY: %ld\nendGetX: %ld\nendGetY: %ld\n"
+print_vectori_defrag_string: .asciz "%d: ind: %d, val: %d\n"
+print_debug_defrag: .asciz "k: %d, ind: %d, val: %d\n"
 print_2d_fara_x: .asciz "((%d, %d), (%d, %d))\n" 
 print_2d_cu_x: .asciz "%d: ((%d, %d), (%d, %d))\n"
 dbg_print: .asciz "ecx: %d\n"
@@ -36,6 +38,8 @@ end: .long 0
 k: .long 0
 x_addmem: .long 0
 nrbytes_addmem: .long 0
+
+addmem_special_startline: .long 0
 # ------addmem END-----
 aux: .long 0
 i: .long 0
@@ -51,7 +55,12 @@ x_getmem: .long 0
 x_delmem: .long 0
 # ------ delmem END -----
 # ------ defragmem START -----
-idx: .long 0
+ind_defrag: .space 2000
+val_defrag: .space 2000
+k_defrag: .long 0
+indice_defrag: .long 0
+val_i_defrag: .long 0
+adr_inceput_defrag: .long 0
 .text
 
 # void print_mem()
@@ -95,7 +104,39 @@ print_mem_stupid:
 
     popl %ebp
     ret
+print_vectori_defrag:
+    pushl %ebp
+    movl %esp, %ebp
 
+    xorl %ecx, %ecx
+    print_vectori_defrag_loop:
+        pusha
+
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $val_defrag, %eax
+        
+        pushl (%eax) # val
+        
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $ind_defrag, %eax
+
+        pushl (%eax) # ind
+
+        pushl %ecx # ecx
+        pushl $print_vectori_defrag_string
+        call printf
+        addl $16, %esp
+
+        popa
+
+        incl %ecx
+        cmpl k_defrag, %ecx
+        jl print_vectori_defrag_loop
+
+    popl %ebp
+    ret
 
 print_mem:
     pushl %ebp
@@ -166,7 +207,6 @@ print_nr: # printf("%d ", v[i]);
 add_mem: 
     pushl %ebp
     mov %esp, %ebp
-
     movl 8(%ebp), %eax
     movl %eax, nrbytes_addmem
     movl 12(%ebp), %eax
@@ -508,6 +548,228 @@ delete_mem:
     popl %ebp
     ret
 
+delete_everything:
+    pushl %ebp
+    movl %esp, %ebp
+    xorl %ecx, %ecx
+    xorl %ebx, %ebx
+    delete_everything_loop:
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $sysmem, %eax
+        movl %ebx, (%eax) # v[i] = 0
+
+        incl %ecx
+        cmpl n_sqr, %ecx
+        jl delete_everything_loop
+    popl %ebp
+    ret
+
+add_mem_startline_x:
+    pushl %ebp
+    mov %esp, %ebp
+    movl 8(%ebp), %eax
+    movl %eax, nrbytes_addmem
+    movl 12(%ebp), %eax
+    movl %eax, x_addmem
+    xorl %ecx, %ecx # i = 0
+    movl %ecx, count # count = 0
+    movl %ecx, start # start = 0
+    movl %ecx, end # end = 0
+    movl %ecx, addOk # addOk = 0
+    movl indice_defrag, %ecx # incepem de pe linia coresp.
+    add_mem_loop_startline_x:
+        movl %ecx, %eax
+        shl $12, %eax
+        addl $sysmem, %eax
+
+        # pusha
+        # pushl %ecx
+        # pushl $dbg_print
+        # call printf
+        # addl $8, %esp
+        # popa
+
+        pusha
+        pushl %eax
+        call add_mem_line_x # memmory leak aici, probabil va trebui rescrisa functia ca habar nu am de ce nu merge
+        popl %eax
+        popa
+
+        # daca addOk = 1 ne oprim
+        movl $1, %eax
+        cmpl addOk, %eax
+        je add_mem_loop_end_startline_x
+
+        incl %ecx
+        cmpl n, %ecx
+        jl add_mem_loop_startline_x
+    add_mem_loop_end_startline_x:
+    popl %ebp
+    ret
+
+
+defrag_mem:
+    # tinem minte 3 vectori
+    # ind[i] = indicele nr i
+    # val[i] = cati de i
+    # indice_defrag - unde am adaugat ultima oara, ca sa adaugam obligatoriu incepand de pe aceeasi linie
+    pushl %ebp
+    movl %esp, %ebp
+
+    xorl %ecx, %ecx
+    movl %ecx, indice_defrag # indice_defrag = 0
+    movl %ecx, k_defrag # k_defrag = 0
+    # initializam si vectorii cu 0, deci facem for
+    xorl %eax, %eax
+    xorl %ebx, %ebx
+    defrag_mem_init_vect_zero_loop:
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $val_defrag, %eax
+        movl %ebx, (%eax)
+
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $ind_defrag, %eax
+        movl %ebx, (%eax)
+
+        incl %ecx
+        cmpl $256, %ecx
+        jl defrag_mem_init_vect_zero_loop
+    defrag_mem_init_vect_zero_loop_end:
+
+    xorl %ecx, %ecx
+    defrag_mem_first_loop:
+        movl %ecx, %eax
+        shl $12, %eax
+        addl $sysmem, %eax
+        movl %eax, adr_inceput_defrag
+        pushl %ecx # salvam ecx
+        xorl %ecx, %ecx
+        defrag_mem_second_loop:
+        # aparent daca sunt 2 valori pe acelasi rand sare peste whatt??
+            movl %ecx, %eax
+            shl $2, %eax
+            addl adr_inceput_defrag, %eax
+            movl (%eax), %ebx
+            movl %ebx, val_i_defrag # pastram valoarea pt mai tarziu in caz de orice
+            cmpl $0, %ebx
+            je defrag_mem_second_loop_first_if_end
+            defrag_mem_second_loop_first_if:
+            # am gasit, deci dam get
+            pusha
+            pushl %ebx
+            call get_mem
+            addl $4, %esp
+            popa 
+
+            movl endGetY, %ecx # optimizare
+
+            movl startGetY, %eax
+            movl endGetY, %ebx
+            subl %eax, %ebx
+            incl %ebx
+
+            movl k_defrag, %eax
+            shl $2, %eax
+            addl $val_defrag, %eax
+            movl %ebx, (%eax) # salvat in vectorul val
+
+            # pusha
+            # pushl %ebx # print val
+
+            movl k_defrag, %eax
+            shl $2, %eax
+            addl $ind_defrag, %eax
+            movl val_i_defrag, %ebx
+            movl %ebx, (%eax) # salvat valoarea in vectorul ind
+
+            # pushl %ebx # print ind
+            # pushl k_defrag # print k
+            # pushl $print_debug_defrag
+            # call printf
+            # addl $16, %esp
+            # popa
+
+            # incrementam pe k dupa
+            movl k_defrag, %eax
+            incl %eax
+            movl %eax, k_defrag
+
+            # dam delete la ce am gasit ca sa nu facem de 10 ori sa iasa din memorie
+            # pushl val_i_defrag
+            # call delete_mem
+            # addl $4, %esp
+
+            defrag_mem_second_loop_first_if_end:
+            # daca v[i] != 0 dam get, salvam datele de la get in vectori
+            # si dupa dam delete de v[i]
+            incl %ecx
+            cmpl n, %ecx
+            jl defrag_mem_second_loop
+        defrag_mem_second_loop_end:
+        popl %ecx # restauram ecx
+        incl %ecx
+        cmpl n, %ecx
+        jl defrag_mem_first_loop
+    defrag_mem_first_loop_end:
+    pusha
+    # call print_vectori_defrag
+    call delete_everything # facem tot 0
+    popa
+    
+    xorl %ecx, %ecx
+    movl %ecx, indice_defrag # indice_defrag = ultima linie pe care am adaugat, trebuie sa adaugam tot acolo
+    defrag_mem_3rd_loop:
+        pusha
+        # pushl indice_defrag
+
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $ind_defrag, %eax
+        pushl (%eax)
+        # trebuie inmultit cu 8 mai intai
+        
+
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $val_defrag, %eax
+        movl (%eax), %ebx
+        movl %ebx, %eax
+        shl $3, %eax
+        pushl %eax # prima valoare pentru apelul de add
+
+        call add_mem_startline_x
+        addl $8, %esp
+        popa
+        # actualizam indicele de defragmentare
+        # cautam valoarea si vedem linia la care a fost pusa
+        pusha
+        movl %ecx, %eax
+        shl $2, %eax
+        addl $ind_defrag, %eax
+        pushl (%eax)
+        call get_mem
+        addl $4, %esp
+        popa
+        # puteam recicla dar asta este, nu risc
+        movl startGetX, %eax 
+        movl %eax, indice_defrag
+
+        incl %ecx
+        cmpl k_defrag, %ecx
+        jl defrag_mem_3rd_loop
+    # defragmentarea propriu-zisa
+    # for de la 1 la k (exclusiv)
+    # pentru a pastra indicele corect actualizam la fiecare pas care a fost ultima linie unde am adaugat, si adaugam obligatoriu de acolo in jos
+    # deci: add(ind[i], val[i])
+    # vedem pe ce linie a adaugat si tinem minte nr acela, dandu-l ca parametru la add-ul de data viitoare, deci se actualizeaza intr-un fel singur
+
+    call print_get_special # posibil sa nu avem nevoie de asta din cauza la add-urile repetate
+    popl %ebp
+    ret
+
 print_get_special:
     pushl %ebp
     movl %esp, %ebp
@@ -698,7 +960,7 @@ main:
         jmp switch_op_end
         case_3:
         # TO BE DONE
-        # call defrag_mem 
+        call defrag_mem 
         jmp switch_op_end
         switch_op_end:
         # call print_get_special
