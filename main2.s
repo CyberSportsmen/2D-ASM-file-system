@@ -353,12 +353,6 @@ add_mem_line_x:
 
             subl $sysmem, %eax
             shr $2, %eax
-            # pusha
-            # pushl %eax
-            # pushl $dbg_print2
-            # call printf
-            # addl $8, %esp
-            # popa
 
             incl %ecx
             cmpl blocks, %ecx
@@ -582,13 +576,6 @@ add_mem_startline_x:
         movl %ecx, %eax
         shl $12, %eax
         addl $sysmem, %eax
-
-        # pusha
-        # pushl %ecx
-        # pushl $dbg_print
-        # call printf
-        # addl $8, %esp
-        # popa
 
         pusha
         pushl %eax
@@ -867,12 +854,6 @@ print_everything_debug:
 
 .global main
 main:
-    # pusha
-    # pushl $sysmem
-    # pushl $dbg_print3
-    # call printf
-    # addl $8, %esp
-    # popa
 
     pushl $t
     pushl $citire_1
@@ -930,7 +911,6 @@ main:
             jne main_loop_first_op_loop
         # la final de add afisam tot!
         # APARENT NU MAI AFISAM LA FINAL DE ADD TOT!
-        # call print_get_special
         jmp switch_op_end
         case_1:
         pushl $valoare
@@ -959,14 +939,9 @@ main:
 
         jmp switch_op_end
         case_3:
-        # TO BE DONE
         call defrag_mem 
         jmp switch_op_end
         switch_op_end:
-        # call print_get_special
-        # call print_mem # DEBUG misto :)
-        # call print_mem_stupid
-        # call print_everything_debug
         movl t, %eax
         decl %eax
         movl %eax, t
@@ -980,3 +955,4 @@ et_exit:
     mov $1, %eax
     xor %ebx, %ebx
     int $0x80
+
